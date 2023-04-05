@@ -19,7 +19,7 @@
 //! let t = TDigest::new_with_size(100);
 //! let values: Vec<f64> = (1..=1_000_000).map(f64::from).collect();
 //!
-//! let t = t.merge_sorted(values);
+//! let t = t.merge_sorted(&values);
 //!
 //! let ans = t.estimate_quantile(0.99);
 //! let expected: f64 = 990_000.0;
@@ -215,15 +215,13 @@ impl TDigest {
         }
     }
 
-    pub fn merge_unsorted(&self, unsorted_values: Vec<f64>) -> TDigest {
-        let mut sorted_values: Vec<OrderedFloat<f64>> = unsorted_values.into_iter().map(OrderedFloat::from).collect();
-        sorted_values.sort();
-        let sorted_values = sorted_values.into_iter().map(|f| f.into_inner()).collect();
+    pub fn merge_unsorted(&self, mut unsorted_values: Vec<f64>) -> TDigest {
+        unsorted_values.sort_unstable_by(|a, b| a.total_cmp(b));
 
-        self.merge_sorted(sorted_values)
+        self.merge_sorted(&unsorted_values)
     }
 
-    pub fn merge_sorted(&self, sorted_values: Vec<f64>) -> TDigest {
+    pub fn merge_sorted(&self, sorted_values: &[f64]) -> TDigest {
         if sorted_values.is_empty() {
             return self.clone();
         }
@@ -289,7 +287,7 @@ impl TDigest {
                 sums_to_merge = 0.0;
                 weights_to_merge = 0.0;
 
-                compressed.push(curr.clone());
+                compressed.push(curr);
                 q_limit_times_count = Self::k_to_q(k_limit, self.max_size as f64) * result.count();
                 k_limit += 1.0;
                 curr = next;
@@ -299,7 +297,7 @@ impl TDigest {
         result.sum = OrderedFloat::from(result.sum.into_inner() + curr.add(sums_to_merge, weights_to_merge));
         compressed.push(curr);
         compressed.shrink_to_fit();
-        compressed.sort();
+        compressed.sort_unstable();
 
         result.centroids = compressed;
         result
@@ -536,7 +534,7 @@ mod tests {
         let t = TDigest::new_with_size(100);
         let values: Vec<f64> = (1..=1_000_000).map(f64::from).collect();
 
-        let t = t.merge_sorted(values);
+        let t = t.merge_sorted(&values);
 
         let ans = t.estimate_quantile(1.0);
         let expected: f64 = 1_000_000.0;
@@ -615,7 +613,7 @@ mod tests {
             values.push(1_000_000.0);
         }
 
-        let t = t.merge_sorted(values);
+        let t = t.merge_sorted(&values);
 
         let ans = t.estimate_quantile(0.99);
         let expected: f64 = 1_000_000.0;
@@ -670,7 +668,7 @@ mod tests {
         for _ in 1..=100 {
             let t = TDigest::new_with_size(100);
             let values: Vec<f64> = (1..=1_000).map(f64::from).collect();
-            let t = t.merge_sorted(values);
+            let t = t.merge_sorted(&values);
             digests.push(t)
         }
 
